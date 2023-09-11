@@ -1,0 +1,14 @@
+{
+  "apps": [
+    {
+      "name": "mafia",
+      "path": "/root/mafia"
+    },
+    {
+      "name": "BPMS",
+      "path": "/root/bpms"
+    }
+  ],
+  "port": 7777,
+  "password": "Hamed123"
+}
