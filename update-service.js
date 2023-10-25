@@ -8,12 +8,12 @@ const config = require("./config.json");
 
 const { appsConfig, port } = config;
 
-const apps = {};
-const pm2Process = {};
+const gitPull = {};
+const restartPm2Process = {};
 const appsName = [];
 
 appsConfig.forEach((app) => {
-  apps[app.name] = () =>
+  gitPull[app.name] = () =>
     new Promise((resolve, reject) => {
       exec(
         `git --git-dir='${app.path}/.git' --work-tree=${app.path} pull`,
@@ -31,7 +31,7 @@ appsConfig.forEach((app) => {
       );
     });
 
-  pm2Process[app.name] = () =>
+  restartPm2Process[app.name] = () =>
     new Promise((resolve, reject) => {
       exec(`pm2 restart ${app.name}`, (err, stdout, stderr) => {
         if (err) {
@@ -63,11 +63,11 @@ app.all("/update/:appName/:pass", async (req, res) => {
     return;
   }
 
-  const updateResult = await apps[appName]();
+  const updateResult = await gitPull[appName]();
   res.send(updateResult);
 
   if (updateResult != "Already up to date.") {
-    const restartResult = await pm2Process[appName]();
+    const restartResult = await restartPm2Process[appName]();
     console.log(restartResult);
   }
 });
