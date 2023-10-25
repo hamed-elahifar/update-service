@@ -6,8 +6,7 @@ const app = require("express")();
 
 const config = require("./config.json");
 
-const appsConfig = config.apps;
-const port = config.port;
+const { appsConfig, port } = config;
 
 const apps = {};
 const pm2Process = {};
@@ -51,25 +50,24 @@ appsConfig.forEach((app) => {
   appsName.push(app.name);
 });
 
-app.all("/update/:app/:pass", async (req, res) => {
-  const app = req.params.app;
-  const pass = req.params.pass;
+app.all("/update/:appName/:pass", async (req, res) => {
+  const { appName, pass } = req.params;
 
-  if (!appsName.includes(app)) {
+  if (pass != config.password) {
+    res.send("incorrect credentials");
+    return;
+  }
+
+  if (!appsName.includes(appName)) {
     res.send("wrong app name");
     return;
   }
 
-  if (pass != config.password) {
-    res.send("incorrect password");
-    return;
-  }
-
-  const updateResult = await apps[app]();
+  const updateResult = await apps[appName]();
   res.send(updateResult);
 
   if (updateResult != "Already up to date.") {
-    const restartResult = await pm2Process[app]();
+    const restartResult = await pm2Process[appName]();
     console.log(restartResult);
   }
 });
