@@ -6,13 +6,13 @@ const app = require("express")();
 
 const config = require("./config.json");
 
-const { appsConfig, port } = config;
+const { apps, port, password } = config;
 
 const gitPull = {};
 const restartPm2Process = {};
 const appsName = [];
 
-appsConfig.forEach((app) => {
+apps.forEach((app) => {
   gitPull[app.name] = () =>
     new Promise((resolve, reject) => {
       exec(
@@ -53,7 +53,7 @@ appsConfig.forEach((app) => {
 app.all("/update/:appName/:pass", async (req, res) => {
   const { appName, pass } = req.params;
 
-  if (pass != config.password) {
+  if (pass != password) {
     res.send("incorrect credentials");
     return;
   }
