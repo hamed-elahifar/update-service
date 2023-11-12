@@ -5,8 +5,8 @@
       "path": "/root/mafia"
     },
     {
-      "name": "BPMS",
-      "path": "/root/bpms"
+      "name": "iEA",
+      "path": "/root/iEA"
     }
   ],
   "port": 7777,
