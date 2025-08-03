@@ -1,8 +1,6 @@
-/* eslint-disable prettier/prettier */
-/* eslint-disable @typescript-eslint/no-var-requires */
 console.clear();
 const { exec } = require("child_process");
-const app = require("express")();
+const expressApp = require("express")();
 
 const config = require("./config.json");
 
@@ -50,7 +48,7 @@ apps.forEach((app) => {
   appsName.push(app.name);
 });
 
-app.all("/update/:appName/:pass", async (req, res) => {
+expressApp.all("/update/:appName/:pass", async (req, res) => {
   const { appName, pass } = req.params;
 
   if (pass != password) {
@@ -72,4 +70,4 @@ app.all("/update/:appName/:pass", async (req, res) => {
   }
 });
 
-app.listen(port, () => console.log(`update service is running on ${port}`));
+expressApp.listen(port, () => console.log(`update service is running on ${port}`));
