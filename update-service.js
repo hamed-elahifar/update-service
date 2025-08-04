@@ -8,6 +8,8 @@ const { apps, port, password } = config;
 
 const gitPull = {};
 const restartPm2Process = {};
+const pmInstall = {};
+const appBuild = {};
 const appsName = [];
 
 apps.forEach((app) => {
@@ -27,6 +29,36 @@ apps.forEach((app) => {
           resolve(stdout);
         }
       );
+    });
+
+  pmInstall[app.name] = () =>
+    new Promise((resolve, reject) => {
+      exec(`cd ${app.path} && ${app.pm} install`, (err, stdout, stderr) => {
+        if (err) {
+          console.log(err);
+          reject(err);
+        }
+        if (stderr) {
+          console.log(stderr);
+          reject(stderr);
+        }
+        resolve(stdout);
+      });
+    });
+
+  appBuild[app.name] = () =>
+    new Promise((resolve, reject) => {
+      exec(`cd ${app.path} && ${app.pm} build`, (err, stdout, stderr) => {
+        if (err) {
+          console.log(err);
+          reject(err);
+        }
+        if (stderr) {
+          console.log(stderr);
+          reject(stderr);
+        }
+        resolve(stdout);
+      });
     });
 
   restartPm2Process[app.name] = () =>
@@ -64,10 +96,18 @@ expressApp.all("/update/:appName/:pass", async (req, res) => {
   const updateResult = await gitPull[appName]();
   res.send(updateResult);
 
+  const pmInstallResult = await pmInstall[appName]();
+  console.log(pmInstallResult);
+
+  const appBuildResult = await appBuild[appName]();
+  console.log(appBuildResult);
+
   if (updateResult != "Already up to date.") {
     const restartResult = await restartPm2Process[appName]();
     console.log(restartResult);
   }
 });
 
-expressApp.listen(port, () => console.log(`update service is running on ${port}`));
+expressApp.listen(port, () =>
+  console.log(`update service is running on ${port}`)
+);

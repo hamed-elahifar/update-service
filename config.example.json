@@ -2,7 +2,8 @@
   "apps": [
     {
       "name": "mafia",
-      "path": "/root/mafia"
+      "path": "/root/mafia",
+      "pm": "pnpm"
     },
     {
       "name": "iEA",
