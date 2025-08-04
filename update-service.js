@@ -117,6 +117,7 @@ apps.forEach((app) => {
 
 expressApp.all("/update/:appName/:pass", async (req, res) => {
   const { appName, pass } = req.params;
+  let allOutput = "";
 
   console.log(`Received update request for app: ${appName}`);
 
@@ -131,18 +132,24 @@ expressApp.all("/update/:appName/:pass", async (req, res) => {
   }
 
   const updateResult = await gitPull[appName]();
-  res.send(updateResult);
+  allOutput += updateResult;
+  allOutput += "\n";
 
   const pmInstallResult = await pmInstall[appName]();
-  console.log(pmInstallResult);
+  allOutput += pmInstallResult;
+  allOutput += "\n";
 
   const appBuildResult = await pmRunBuild[appName]();
-  console.log(appBuildResult);
+  allOutput += appBuildResult;
+  allOutput += "\n";
 
   if (updateResult != "Already up to date.") {
     const restartResult = await restartPm2Process[appName]();
-    console.log(restartResult);
+    allOutput += restartResult;
+    allOutput += "\n";
   }
+
+  res.send(allOutput);
 });
 
 expressApp.listen(port, () =>
