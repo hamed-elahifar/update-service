@@ -1,13 +1,9 @@
 {
   "apps": [
     {
-      "name": "mafia",
-      "path": "/root/mafia",
+      "name": "tickado-new",
+      "path": "/root/tickado-new",
       "pm": "pnpm"
-    },
-    {
-      "name": "iEA",
-      "path": "/root/iEA"
     }
   ],
   "port": 7777,
