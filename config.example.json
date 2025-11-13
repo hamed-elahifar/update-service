@@ -3,6 +3,7 @@
     {
       "name": "tickado-new",
       "path": "/root/tickado-new",
+      "branch": " master",
       "pm": "pnpm"
     }
   ],

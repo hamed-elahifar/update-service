@@ -38,7 +38,7 @@ const appsName = [];
 
 apps.forEach((app) => {
   gitPull[app.name] = () => {
-    const command = `git --git-dir='${app.path}/.git' --work-tree=${app.path} pull`;
+    const command = `git --git-dir='${app.path}/.git' --work-tree=${app.path} checkout ${app.branch} && git --git-dir='${app.path}/.git' --work-tree=${app.path} pull --all`;
     return executeCommand(command);
   };
 
