@@ -7,6 +7,28 @@ const config = require("./config.json");
 
 const { apps, port, password } = config;
 
+const executeCommand = (command) => {
+  return new Promise((resolve, _) => {
+    const result = spawn(command, { shell: true });
+
+    let allOutput = "";
+
+    result.stdout.on("data", (data) => {
+      process.stdout.write(data);
+      allOutput += data + "\n";
+    });
+
+    result.stderr.on("data", (data) => {
+      process.stderr.write(data);
+      allOutput += data + "\n";
+    });
+
+    result.on("close", (code) => {
+      resolve(allOutput);
+    });
+  });
+};
+
 const gitPull = {};
 const restartPm2Process = {};
 const pmInstall = {};
@@ -14,111 +36,39 @@ const pmRunBuild = {};
 const appsName = [];
 
 apps.forEach((app) => {
-  gitPull[app.name] = () =>
-    new Promise((resolve, reject) => {
-      const command = `git --git-dir='${app.path}/.git' --work-tree=${app.path} pull`;
+  gitPull[app.name] = () => {
+    const command = `git --git-dir='${app.path}/.git' --work-tree=${app.path} pull`;
+    return executeCommand(command);
+  };
 
-      const result = spawn(command, { shell: true });
+  pmInstall[app.name] = () => {
+    const command =
+      app.pm === "bun"
+        ? `bun install --cwd ${app.path}`
+        : app.pm === "npm"
+        ? `npm --prefix ${app.path} install`
+        : app.pm === "pnpm"
+        ? `pnpm --dir ${app.path} install`
+        : null;
+    return executeCommand(command);
+  };
 
-      let allOutput = "";
+  pmRunBuild[app.name] = () => {
+    const command =
+      app.pm === "bun"
+        ? `bun run build --cwd ${app.path}`
+        : app.pm === "npm"
+        ? `npm --prefix ${app.path} run build`
+        : app.pm === "pnpm"
+        ? `pnpm --dir ${app.path} run build`
+        : null;
+    return executeCommand(command);
+  };
 
-      result.stdout.on("data", (data) => {
-        process.stdout.write(data);
-        allOutput += data;
-      });
-
-      result.stderr.on("data", (data) => {
-        process.stderr.write(data);
-        allOutput += data;
-      });
-
-      result.on("close", (code) => {
-        resolve(allOutput);
-      });
-    });
-
-  pmInstall[app.name] = () =>
-    new Promise((resolve, reject) => {
-      const command =
-        app.pm === "bun"
-          ? `bun install --cwd ${app.path}`
-          : app.pm === "npm"
-          ? `npm --prefix ${app.path} install`
-          : app.pm === "pnpm"
-          ? `pnpm --dir ${app.path} install`
-          : null;
-
-      const result = spawn(command, { shell: true });
-
-      let allOutput = "";
-
-      result.stdout.on("data", (data) => {
-        process.stdout.write(data);
-        allOutput += data;
-      });
-
-      result.stderr.on("data", (data) => {
-        process.stderr.write(data);
-        allOutput += data;
-      });
-
-      result.on("close", (code) => {
-        resolve(allOutput);
-      });
-    });
-
-  pmRunBuild[app.name] = () =>
-    new Promise((resolve, reject) => {
-      const command =
-        app.pm === "bun"
-          ? `bun run build --cwd ${app.path}`
-          : app.pm === "npm"
-          ? `npm --prefix ${app.path} run build`
-          : app.pm === "pnpm"
-          ? `pnpm --dir ${app.path} run build`
-          : null;
-
-      const result = spawn(command, { shell: true });
-
-      let allOutput = "";
-
-      result.stdout.on("data", (data) => {
-        process.stdout.write(data);
-        allOutput += data;
-      });
-
-      result.stderr.on("data", (data) => {
-        process.stderr.write(data);
-        allOutput += data;
-      });
-
-      result.on("close", (code) => {
-        resolve(allOutput);
-      });
-    });
-
-  restartPm2Process[app.name] = () =>
-    new Promise((resolve, reject) => {
-      const command = `pm2 restart ${app.name}`;
-
-      const result = spawn(command, { shell: true });
-
-      let allOutput = "";
-
-      result.stdout.on("data", (data) => {
-        process.stdout.write(data);
-        allOutput += data;
-      });
-
-      result.stderr.on("data", (data) => {
-        process.stderr.write(data);
-        allOutput += data;
-      });
-
-      result.on("close", (code) => {
-        resolve(allOutput);
-      });
-    });
+  restartPm2Process[app.name] = () => {
+    const command = `pm2 restart ${app.name}`;
+    return executeCommand(command);
+  };
 
   appsName.push(app.name);
 });
