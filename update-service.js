@@ -1,5 +1,5 @@
 console.clear();
-const { exec, spawn } = require("child_process");
+const { spawn } = require("child_process");
 
 const expressApp = require("express")();
 
@@ -40,9 +40,13 @@ apps.forEach((app) => {
   pmInstall[app.name] = () =>
     new Promise((resolve, reject) => {
       const command =
-        app.pm === "npm"
+        app.pm === "bun"
+          ? `bun install --cwd ${app.path}`
+          : app.pm === "npm"
           ? `npm --prefix ${app.path} install`
-          : `pnpm --dir ${app.path} install`;
+          : app.pm === "pnpm"
+          ? `pnpm --dir ${app.path} install`
+          : null;
 
       const result = spawn(command, { shell: true });
 
@@ -66,9 +70,13 @@ apps.forEach((app) => {
   pmRunBuild[app.name] = () =>
     new Promise((resolve, reject) => {
       const command =
-        app.pm === "npm"
+        app.pm === "bun"
+          ? `bun run build --cwd ${app.path}`
+          : app.pm === "npm"
           ? `npm --prefix ${app.path} run build`
-          : `pnpm --dir ${app.path} run build`;
+          : app.pm === "pnpm"
+          ? `pnpm --dir ${app.path} run build`
+          : null;
 
       const result = spawn(command, { shell: true });
 
