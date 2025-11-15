@@ -38,7 +38,10 @@ const appsName = [];
 
 apps.forEach((app) => {
   gitPull[app.name] = () => {
-    const command = `git --git-dir='${app.path}/.git' --work-tree=${app.path} checkout ${app.branch} && git --git-dir='${app.path}/.git' --work-tree=${app.path} pull --all`;
+    const command =
+      `git --git-dir='${app.path}/.git' --work-tree=${app.path} checkout ${app.branch}` +
+      ` && ` +
+      `git --git-dir='${app.path}/.git' --work-tree=${app.path} pull --all`;
     return executeCommand(command);
   };
 
@@ -91,21 +94,17 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
   }
 
   const updateResult = await gitPull[appName]();
-  allOutput += updateResult;
-  allOutput += "\n";
+  allOutput += updateResult + "\n";
 
   const pmInstallResult = await pmInstall[appName]();
-  allOutput += pmInstallResult;
-  allOutput += "\n";
+  allOutput += pmInstallResult + "\n";
 
   const appBuildResult = await pmRunBuild[appName]();
-  allOutput += appBuildResult;
-  allOutput += "\n";
+  allOutput += appBuildResult + "\n";
 
   if (updateResult != "Already up to date.") {
     const restartResult = await restartPm2Process[appName]();
-    allOutput += restartResult;
-    allOutput += "\n";
+    allOutput += restartResult + "\n";
   }
 
   res.send(allOutput);
