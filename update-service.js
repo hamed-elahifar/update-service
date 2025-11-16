@@ -10,17 +10,19 @@ const { apps, port, password } = config;
 
 const executeCommand = (command) => {
   return new Promise((resolve, _) => {
+    console.log(`>>> ${command}`);
+
     const result = spawn(command, { shell: true });
 
     let allOutput = "";
 
     result.stdout.on("data", (data) => {
-      process.stdout.write(data);
+      process.stdout.write(data + "\n");
       allOutput += data + "\n";
     });
 
     result.stderr.on("data", (data) => {
-      process.stderr.write(data);
+      process.stderr.write(data + "\n");
       allOutput += data + "\n";
     });
 
@@ -37,9 +39,8 @@ const pmRunBuild = {};
 const appsName = [];
 
 apps.forEach((app) => {
-  const gitDir = `--git-dir='${app.path}/.git' --work-tree=${app.path}`;
-
   gitPull[app.name] = () => {
+    const gitDir = `--git-dir='${app.path}/.git' --work-tree=${app.path}`;
     const command =
       `git ${gitDir} reset --hard` +
       ` && ` +
@@ -98,18 +99,18 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
   }
 
   const updateResult = await gitPull[appName]();
-  allOutput += updateResult + "\n";
+  allOutput += updateResult + "\n\n";
 
   if (!allOutput.includes("Already up to date.")) {
     const pmInstallResult = await pmInstall[appName]();
-    allOutput += pmInstallResult + "\n";
+    allOutput += pmInstallResult + "\n\n";
 
     const appBuildResult = await pmRunBuild[appName]();
-    allOutput += appBuildResult + "\n";
+    allOutput += appBuildResult + "\n\n";
 
     if (updateResult != "Already up to date.") {
       const restartResult = await restartPm2Process[appName]();
-      allOutput += restartResult + "\n";
+      allOutput += restartResult + "\n\n";
     }
   }
 
