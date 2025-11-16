@@ -9,7 +9,7 @@ const config = require("./config.json");
 const { apps, port, password } = config;
 
 const executeCommand = (command) => {
-  return new Promise((resolve, _) => {
+  return new Promise((resolve, reject) => {
     console.log(`>>> ${command}`);
 
     const result = spawn(command, { shell: true });
@@ -24,6 +24,7 @@ const executeCommand = (command) => {
     result.stderr.on("data", (data) => {
       process.stderr.write(data + "\n");
       allOutput += data + "\n";
+      reject(allOutput);
     });
 
     result.on("close", (code) => {
@@ -89,36 +90,42 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
   console.log(`Received update request for app: ${appName}`);
 
   if (pass != password) {
-    res.send("incorrect credentials");
+    res.send("Unauthorized!");
     return;
   }
 
   if (!appsName.includes(appName)) {
-    res.send("wrong app name");
+    res.send("Wrong app name");
     return;
   }
 
-  const updateResult = await gitPull[appName]();
-  allOutput += updateResult + "\n\n";
+  try {
+    const updateResult = await gitPull[appName]();
+    allOutput += updateResult + "\n\n";
 
-  if (!allOutput.includes("Already up to date.")) {
-    const pmInstallResult = await pmInstall[appName]();
-    allOutput += pmInstallResult + "\n\n";
+    if (!allOutput.includes("Already up to date.")) {
+      const pmInstallResult = await pmInstall[appName]();
+      allOutput += pmInstallResult + "\n\n";
 
-    const appBuildResult = await pmRunBuild[appName]();
-    allOutput += appBuildResult + "\n\n";
+      const appBuildResult = await pmRunBuild[appName]();
+      allOutput += appBuildResult + "\n\n";
 
-    if (updateResult != "Already up to date.") {
-      const restartResult = await restartPm2Process[appName]();
-      allOutput += restartResult + "\n\n";
+      if (updateResult != "Already up to date.") {
+        const restartResult = await restartPm2Process[appName]();
+        allOutput += restartResult + "\n\n";
+      }
     }
+  } catch (error) {
+    allOutput += "Error during update process:\n" + error + "\n\n";
+  } finally {
+    res.send(allOutput);
   }
-
-  res.send(allOutput);
 });
 
 expressApp.listen(port, () =>
-  console.log(`update service is running on ${port}`)
+  console.log(
+    `Update service is running on ${port} \npassword: ${password}`
+  )
 );
 
 process.on("uncaughtException", (ex) => {
