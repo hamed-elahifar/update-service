@@ -3,6 +3,9 @@ console.clear();
 const { spawn } = require("child_process");
 
 const expressApp = require("express")();
+expressApp.use(require("cors")());
+expressApp.use(expressApp.json());
+expressApp.use(require("express").urlencoded({ extended: true }));
 
 const config = require("./config.json");
 
@@ -88,6 +91,11 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
   let allOutput = "";
 
   console.log(`Received update request for app: ${appName}`);
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+  console.log("Query:", req.query);
+  console.log("IP:", req.ip);
+  console.log("Method:", req.method);
 
   if (pass != password) {
     res.send("Unauthorized!");
@@ -123,9 +131,7 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
 });
 
 expressApp.listen(port, () =>
-  console.log(
-    `Update service is running on ${port} \npassword: ${password}`
-  )
+  console.log(`Update service is running on ${port} \npassword: ${password}`)
 );
 
 process.on("uncaughtException", (ex) => {
