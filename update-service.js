@@ -1,11 +1,12 @@
 // --------------------- // بسم الله الرحمن الرحيم // --------------------- //
 console.clear();
 const { spawn } = require("child_process");
+const express = require("express");
 
-const expressApp = require("express")();
+const expressApp = express();
 expressApp.use(require("cors")());
-expressApp.use(expressApp.json());
-expressApp.use(require("express").urlencoded({ extended: true }));
+expressApp.use(express.json());
+expressApp.use(express.urlencoded({ extended: true }));
 
 const config = require("./config.json");
 
