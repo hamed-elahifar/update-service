@@ -88,7 +88,7 @@ apps.forEach((app) => {
   appsName.push(app.name);
 });
 
-expressApp.all("/update-service/:appName/:pass", async (req, res) => {
+expressApp.all("/:appName/:pass", async (req, res) => {
   const { appName, pass } = req.params;
   let allOutput = "";
 
