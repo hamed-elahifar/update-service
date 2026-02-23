@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const express = require("express");
 
 const expressApp = express();
+expressApp.set("trust proxy", 1);
 expressApp.use(require("cors")());
 expressApp.use(express.json());
 expressApp.use(express.urlencoded({ extended: true }));
@@ -60,10 +61,10 @@ apps.forEach((app) => {
       app.pm === "bun"
         ? `bun install --cwd ${app.path}`
         : app.pm === "npm"
-        ? `npm --prefix ${app.path} install`
-        : app.pm === "pnpm"
-        ? `pnpm --dir ${app.path} install`
-        : null;
+          ? `npm --prefix ${app.path} install`
+          : app.pm === "pnpm"
+            ? `pnpm --dir ${app.path} install`
+            : null;
     return executeCommand(command);
   };
 
@@ -72,10 +73,10 @@ apps.forEach((app) => {
       app.pm === "bun"
         ? `bun run build --cwd ${app.path}`
         : app.pm === "npm"
-        ? `npm --prefix ${app.path} run build`
-        : app.pm === "pnpm"
-        ? `pnpm --dir ${app.path} run build`
-        : null;
+          ? `npm --prefix ${app.path} run build`
+          : app.pm === "pnpm"
+            ? `pnpm --dir ${app.path} run build`
+            : null;
     return executeCommand(command);
   };
 
@@ -132,7 +133,7 @@ expressApp.all("/update-service/:appName/:pass", async (req, res) => {
 });
 
 expressApp.listen(port, () =>
-  console.log(`Update service is running on ${port} \npassword: ${password}`)
+  console.log(`Update service is running on ${port} \npassword: ${password}`),
 );
 
 process.on("uncaughtException", (ex) => {
