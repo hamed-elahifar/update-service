@@ -46,13 +46,18 @@ const appsName = [];
 
 apps.forEach((app) => {
   gitPull[app.name] = () => {
-    const gitDir = `--git-dir='${app.path}/.git' --work-tree=${app.path}`;
+    const gitDir = `--git-dir='${app.path}/.git' --work-tree='${app.path}'`;
+    
     const command =
+      `git ${gitDir} checkout -f ${app.branch}` +
+      ` && ` +
       `git ${gitDir} reset --hard` +
       ` && ` +
-      `git ${gitDir} checkout ${app.branch}` +
+      `git ${gitDir} clean -fd` +
       ` && ` +
-      `git ${gitDir} pull --all`;
+      `git ${gitDir} fetch --all --prune` +
+      ` && ` +
+      `git ${gitDir} reset --hard origin/${app.branch}`;
     return executeCommand(command);
   };
 
