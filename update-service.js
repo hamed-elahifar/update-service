@@ -66,7 +66,7 @@ apps.forEach((app) => {
   pmInstall[app.name] = () => {
     const command =
       app.pm === "bun"
-        ? `bun install --cwd ${app.path}`
+        ? `bun --cwd "${app.path}" install`
         : app.pm === "npm"
           ? `npm --prefix ${app.path} install`
           : app.pm === "pnpm"
@@ -78,7 +78,7 @@ apps.forEach((app) => {
   pmRunBuild[app.name] = () => {
     const command =
       app.pm === "bun"
-        ? `bun run build --cwd ${app.path}`
+        ? `bun --cwd "${app.path}" run build`
         : app.pm === "npm"
           ? `npm --prefix ${app.path} run build`
           : app.pm === "pnpm"
