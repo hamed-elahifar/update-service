@@ -81,7 +81,7 @@ apps.forEach((app) => {
   };
 
   restartPm2Process[app.name] = () => {
-    const command = `pm2 restart ${app.name}`;
+    const command = `pm2 restart "${app.name}"`;
     return executeCommand(command);
   };
 
@@ -113,18 +113,16 @@ expressApp.all("/:appName/:pass", async (req, res) => {
     const updateResult = await gitPull[appName]();
     allOutput += updateResult + "\n\n";
 
-    if (!allOutput.includes("Already up to date.")) {
-      const pmInstallResult = await pmInstall[appName]();
-      allOutput += pmInstallResult + "\n\n";
+    // if (!allOutput.includes("Already up to date.")) {
+    const pmInstallResult = await pmInstall[appName]();
+    allOutput += pmInstallResult + "\n\n";
 
-      const appBuildResult = await pmRunBuild[appName]();
-      allOutput += appBuildResult + "\n\n";
+    const appBuildResult = await pmRunBuild[appName]();
+    allOutput += appBuildResult + "\n\n";
 
-      if (updateResult != "Already up to date.") {
-        const restartResult = await restartPm2Process[appName]();
-        allOutput += restartResult + "\n\n";
-      }
-    }
+    const restartResult = await restartPm2Process[appName]();
+    allOutput += restartResult + "\n\n";
+    // }
   } catch (error) {
     allOutput += "Error during update process:\n" + error + "\n\n";
   } finally {
