@@ -29,11 +29,14 @@ const executeCommand = (command) => {
     result.stderr.on("data", (data) => {
       process.stderr.write(data + "\n");
       allOutput += data + "\n";
-      reject(allOutput);
     });
 
     result.on("close", (code) => {
-      resolve(allOutput);
+      if (code === 0) {
+        resolve(allOutput);
+      } else {
+        reject(allOutput + `\nCommand exited with code ${code}`);
+      }
     });
   });
 };
