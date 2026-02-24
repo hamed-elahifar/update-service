@@ -68,9 +68,9 @@ apps.forEach((app) => {
       app.pm === "bun"
         ? `bun --cwd "${app.path}" install`
         : app.pm === "npm"
-          ? `npm --prefix ${app.path} install`
+          ? `npm --prefix "${app.path}" install`
           : app.pm === "pnpm"
-            ? `pnpm --dir ${app.path} install`
+            ? `pnpm --dir "${app.path}" install`
             : null;
     return executeCommand(command);
   };
@@ -80,9 +80,9 @@ apps.forEach((app) => {
       app.pm === "bun"
         ? `bun --cwd "${app.path}" run build`
         : app.pm === "npm"
-          ? `npm --prefix ${app.path} run build`
+          ? `npm --prefix "${app.path}" run build`
           : app.pm === "pnpm"
-            ? `pnpm --dir ${app.path} run build`
+            ? `pnpm --dir "${app.path}" run build`
             : null;
     return executeCommand(command);
   };
