@@ -1,13 +1,13 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
+import http from "node:http";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // ===== Config (edit these values directly) =====
 const HOST = "0.0.0.0";
 const PORT = 3000;
 const STATIC_FOLDER_NAME = "dist";
 const ENABLE_SPA_FALLBACK = true;
-const TRUST_PROXY = "loopback";
 const ENABLE_CACHE_HEADERS = true;
 const CACHE_MAX_AGE_SECONDS = 86400;
 const IMMUTABLE_ASSET_EXTENSIONS = [
@@ -27,8 +27,9 @@ const IMMUTABLE_ASSET_EXTENSIONS = [
 const ENABLE_PRECOMPRESSED_FILES = true;
 // ===============================================
 
-const app = express();
-app.set("trust proxy", TRUST_PROXY);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const staticDir = path.resolve(__dirname, STATIC_FOLDER_NAME);
 const immutableExtSet = new Set(IMMUTABLE_ASSET_EXTENSIONS);
 
@@ -73,6 +74,111 @@ function getMimeType(filePath) {
   return map[ext] || "application/octet-stream";
 }
 
+function safeDecode(pathname) {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+}
+
+function isPathInside(baseDir, targetPath) {
+  const relative = path.relative(baseDir, targetPath);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function sendError(res, statusCode, message) {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.end(message);
+}
+
+function setCommonHeaders(res, filePath) {
+  res.setHeader("Content-Type", getMimeType(filePath));
+
+  const cacheControl = getCacheControlFor(filePath);
+  if (cacheControl) {
+    res.setHeader("Cache-Control", cacheControl);
+  }
+}
+
+function streamFile(req, res, filePath, extraHeaders = {}) {
+  for (const [key, value] of Object.entries(extraHeaders)) {
+    res.setHeader(key, value);
+  }
+
+  setCommonHeaders(res, filePath);
+  res.statusCode = 200;
+
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
+
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", () => {
+    sendError(res, 500, "Internal Server Error");
+  });
+  stream.pipe(res);
+}
+
+function tryServePrecompressed(req, res, decodedPath, resolvedFilePath) {
+  if (!ENABLE_PRECOMPRESSED_FILES) {
+    return false;
+  }
+
+  if (decodedPath.endsWith("/")) {
+    return false;
+  }
+
+  if (
+    !fs.existsSync(resolvedFilePath) ||
+    !fs.statSync(resolvedFilePath).isFile()
+  ) {
+    return false;
+  }
+
+  const acceptEncoding = req.headers["accept-encoding"] || "";
+  const brPath = `${resolvedFilePath}.br`;
+  const gzPath = `${resolvedFilePath}.gz`;
+
+  let selectedFilePath = null;
+  let selectedEncoding = null;
+
+  if (acceptEncoding.includes("br") && fs.existsSync(brPath)) {
+    selectedFilePath = brPath;
+    selectedEncoding = "br";
+  } else if (acceptEncoding.includes("gzip") && fs.existsSync(gzPath)) {
+    selectedFilePath = gzPath;
+    selectedEncoding = "gzip";
+  }
+
+  if (!selectedFilePath) {
+    return false;
+  }
+
+  streamFile(req, res, resolvedFilePath, {
+    "Content-Encoding": selectedEncoding,
+    Vary: "Accept-Encoding",
+  });
+
+  return true;
+}
+
+function tryServeStaticFile(req, res, resolvedFilePath) {
+  if (!fs.existsSync(resolvedFilePath)) {
+    return false;
+  }
+
+  const stat = fs.statSync(resolvedFilePath);
+  if (!stat.isFile()) {
+    return false;
+  }
+
+  streamFile(req, res, resolvedFilePath);
+  return true;
+}
+
 if (!fs.existsSync(staticDir)) {
   console.error(`[serve.js] Folder not found: ${staticDir}`);
   console.error(
@@ -81,81 +187,51 @@ if (!fs.existsSync(staticDir)) {
   process.exit(1);
 }
 
-if (ENABLE_PRECOMPRESSED_FILES) {
-  app.get("*", (req, res, next) => {
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      return next();
+const server = http.createServer((req, res) => {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    sendError(res, 405, "Method Not Allowed");
+    return;
+  }
+
+  const requestUrl = new URL(
+    req.url || "/",
+    `http://${req.headers.host || "localhost"}`,
+  );
+  const decodedPath = safeDecode(requestUrl.pathname);
+
+  if (decodedPath === null) {
+    sendError(res, 400, "Bad Request");
+    return;
+  }
+
+  const normalizedPath = decodedPath.replace(/^\/+/, "");
+  const resolvedFilePath = path.resolve(staticDir, normalizedPath);
+
+  if (normalizedPath !== "" && !isPathInside(staticDir, resolvedFilePath)) {
+    sendError(res, 403, "Forbidden");
+    return;
+  }
+
+  if (tryServePrecompressed(req, res, decodedPath, resolvedFilePath)) {
+    return;
+  }
+
+  if (tryServeStaticFile(req, res, resolvedFilePath)) {
+    return;
+  }
+
+  if (ENABLE_SPA_FALLBACK) {
+    const indexPath = path.join(staticDir, "index.html");
+    if (fs.existsSync(indexPath) && fs.statSync(indexPath).isFile()) {
+      streamFile(req, res, indexPath);
+      return;
     }
+  }
 
-    const decodedPath = decodeURIComponent(req.path);
-    if (decodedPath.endsWith("/")) {
-      return next();
-    }
+  sendError(res, 404, "Not Found");
+});
 
-    const relativePath = decodedPath.replace(/^\/+/, "");
-    const resolvedFilePath = path.resolve(staticDir, relativePath);
-
-    if (!resolvedFilePath.startsWith(staticDir + path.sep)) {
-      return next();
-    }
-
-    if (
-      !fs.existsSync(resolvedFilePath) ||
-      !fs.statSync(resolvedFilePath).isFile()
-    ) {
-      return next();
-    }
-
-    const acceptEncoding = req.headers["accept-encoding"] || "";
-    const brPath = `${resolvedFilePath}.br`;
-    const gzPath = `${resolvedFilePath}.gz`;
-
-    let selectedFilePath = null;
-    let selectedEncoding = null;
-
-    if (acceptEncoding.includes("br") && fs.existsSync(brPath)) {
-      selectedFilePath = brPath;
-      selectedEncoding = "br";
-    } else if (acceptEncoding.includes("gzip") && fs.existsSync(gzPath)) {
-      selectedFilePath = gzPath;
-      selectedEncoding = "gzip";
-    }
-
-    if (!selectedFilePath) {
-      return next();
-    }
-
-    res.setHeader("Content-Encoding", selectedEncoding);
-    res.setHeader("Vary", "Accept-Encoding");
-    res.setHeader("Content-Type", getMimeType(resolvedFilePath));
-
-    const cacheControl = getCacheControlFor(resolvedFilePath);
-    if (cacheControl) {
-      res.setHeader("Cache-Control", cacheControl);
-    }
-
-    return res.sendFile(selectedFilePath);
-  });
-}
-
-app.use(
-  express.static(staticDir, {
-    setHeaders: (res, filePath) => {
-      const cacheControl = getCacheControlFor(filePath);
-      if (cacheControl) {
-        res.setHeader("Cache-Control", cacheControl);
-      }
-    },
-  }),
-);
-
-if (ENABLE_SPA_FALLBACK) {
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(staticDir, "index.html"));
-  });
-}
-
-app.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, () => {
   console.log(`[serve.js] Serving: ${staticDir}`);
   console.log(
     `[serve.js] URL: http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`,
