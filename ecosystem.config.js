@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "update-service",
-      script: "update-service.js",
+      name: "update-service-2",
+      script: "update-service-2.js",
     },
   ],
 };
