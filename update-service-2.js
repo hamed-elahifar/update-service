@@ -50,7 +50,11 @@ const server = http.createServer(async (req, res) => {
 
   console.log(`Received update request for app: ${appName}`);
   console.log("Headers:", req.headers);
-  console.log("IP:", req.socket.remoteAddress);
+  const clientIp =
+    req.headers["cf-connecting-ip"] ||
+    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+    req.socket.remoteAddress;
+  console.log("IP:", clientIp);
   console.log("Method:", req.method);
 
   if (pass != password) {
