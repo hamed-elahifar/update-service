@@ -1,143 +1,89 @@
 // --------------------- // بسم الله الرحمن الرحيم // --------------------- //
 console.clear();
 const { spawn } = require("child_process");
-const express = require("express");
-
-const expressApp = express();
-expressApp.set("trust proxy", 1);
-expressApp.use(require("cors")());
-expressApp.use(express.json());
-expressApp.use(express.urlencoded({ extended: true }));
+const http = require("http");
 
 const config = require("./config.json");
 
 const { apps, port, password } = config;
 
-const executeCommand = (command) => {
+const streamCommand = (command, res) => {
   return new Promise((resolve, reject) => {
     console.log(`>>> ${command}`);
 
     const result = spawn(command, { shell: true });
 
-    let allOutput = "";
-
     result.stdout.on("data", (data) => {
-      process.stdout.write(data + "\n");
-      allOutput += data + "\n";
+      process.stdout.write(data);
+      res.write(data);
     });
 
     result.stderr.on("data", (data) => {
-      process.stderr.write(data + "\n");
-      allOutput += data + "\n";
+      process.stderr.write(data);
+      res.write(data);
     });
 
     result.on("close", (code) => {
       if (code === 0) {
-        resolve(allOutput);
+        resolve();
       } else {
-        reject(allOutput + `\nCommand exited with code ${code}`);
+        reject(`\nCommand exited with code ${code}`);
       }
     });
   });
 };
 
-const gitPull = {};
-const restartPm2Process = {};
-const pmInstall = {};
-const pmRunBuild = {};
 const appsName = [];
+const runDeploy = {};
 
 apps.forEach((app) => {
-  gitPull[app.name] = () => {
-    const targetBranch = (app.branch || "main").trim();
-    const gitDir = `--git-dir='${app.path}/.git' --work-tree='${app.path}'`;
-
-    const command =
-      `git ${gitDir} fetch --all --prune` +
-      ` && ` +
-      `git ${gitDir} checkout -B ${targetBranch} origin/${targetBranch}` +
-      ` && ` +
-      `git ${gitDir} reset --hard origin/${targetBranch}` +
-      ` && ` +
-      `git ${gitDir} clean -fd`;
-    return executeCommand(command);
-  };
-
-  pmInstall[app.name] = () => {
-    const command =
-      app.pm === "bun"
-        ? `cd "${app.path}" && bun install`
-        : app.pm === "npm"
-          ? `npm --prefix "${app.path}" install`
-          : app.pm === "pnpm"
-            ? `pnpm --dir "${app.path}" install`
-            : null;
-    return executeCommand(command);
-  };
-
-  pmRunBuild[app.name] = () => {
-    const command =
-      app.pm === "bun"
-        ? `cd "${app.path}" && bun run build`
-        : app.pm === "npm"
-          ? `npm --prefix "${app.path}" run build`
-          : app.pm === "pnpm"
-            ? `pnpm --dir "${app.path}" run build`
-            : null;
-    return executeCommand(command);
-  };
-
-  restartPm2Process[app.name] = () => {
-    const command = `pm2 restart "${app.name}"`;
-    return executeCommand(command);
-  };
-
   appsName.push(app.name);
+  runDeploy[app.name] = (res) => {
+    const deployScript = `${app.path}/bin/deploy.sh`;
+    return streamCommand(`bash "${deployScript}"`, res);
+  };
 });
 
-expressApp.all("/:appName/:pass", async (req, res) => {
-  const { appName, pass } = req.params;
-  let allOutput = "";
+const server = http.createServer(async (req, res) => {
+  const parts = req.url.split("/").filter(Boolean);
+  const [appName, pass] = parts;
 
   console.log(`Received update request for app: ${appName}`);
   console.log("Headers:", req.headers);
-  console.log("Body:", req.body);
-  console.log("Query:", req.query);
-  console.log("IP:", req.ip);
+  const clientIp =
+    req.headers["cf-connecting-ip"] ||
+    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+    req.socket.remoteAddress;
+  console.log("IP:", clientIp);
   console.log("Method:", req.method);
 
   if (pass != password) {
-    res.send("Unauthorized!");
+    res.writeHead(401, { "Content-Type": "text/plain" });
+    res.end("Unauthorized!");
     return;
   }
 
   if (!appsName.includes(appName)) {
-    res.send("Wrong app name");
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Wrong app name");
     return;
   }
 
+  res.writeHead(200, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "X-Content-Type-Options": "nosniff",
+  });
+
   try {
-    const updateResult = await gitPull[appName]();
-    allOutput += updateResult + "\n\n";
-
-    // if (!allOutput.includes("Already up to date.")) {
-    const pmInstallResult = await pmInstall[appName]();
-    allOutput += pmInstallResult + "\n\n";
-
-    const appBuildResult = await pmRunBuild[appName]();
-    allOutput += appBuildResult + "\n\n";
-
-    const restartResult = await restartPm2Process[appName]();
-    allOutput += restartResult + "\n\n";
-    // }
+    await runDeploy[appName](res);
+    res.end("\n\nDone.\n");
   } catch (error) {
-    allOutput += "Error during update process:\n" + error + "\n\n";
-  } finally {
-    res.send(allOutput);
+    res.end("\n\nError during deploy:\n" + error + "\n");
   }
 });
 
-expressApp.listen(port, () =>
+server.listen(port, () =>
   console.log(`Update service is running on ${port} \npassword: ${password}`),
 );
 
