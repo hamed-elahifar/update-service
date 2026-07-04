@@ -2,10 +2,22 @@
 console.clear();
 const { spawn } = require("child_process");
 const http = require("http");
+const Sentry = require("@sentry/node");
 
 const config = require("./config.json");
 
-const { apps, port, password } = config;
+const { apps, port, password, sentryDsn } = config;
+
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    tracesSampleRate: 0.01, // 1% of transactions — adjust to your needs
+    autoSessionTracking: false, // GlitchTip does not support sessions
+    // Sends every console.log/info/warn/error/debug call to Sentry as an event
+    // (default levels already cover all of them).
+    integrations: [Sentry.captureConsoleIntegration()],
+  });
+}
 
 const streamCommand = (command, res) => {
   return new Promise((resolve, reject) => {
@@ -88,8 +100,10 @@ server.listen(port, () =>
 );
 
 process.on("uncaughtException", (ex) => {
+  Sentry.captureException(ex);
   console.log("uncaughtException", ex);
 });
 process.on("unhandledRejection", (ex) => {
+  Sentry.captureException(ex);
   console.log("unhandledRejection", ex);
 });
