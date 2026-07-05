@@ -2,11 +2,12 @@
 console.clear();
 const { spawn } = require("child_process");
 const http = require("http");
+const crypto = require("crypto");
 const Sentry = require("@sentry/node");
 
 const config = require("./config.json");
 
-const { apps, port, password, sentryDsn } = config;
+const { apps, port, webhookSecret, sentryDsn } = config;
 
 if (sentryDsn) {
   Sentry.init({
@@ -56,48 +57,82 @@ apps.forEach((app) => {
   };
 });
 
-const server = http.createServer(async (req, res) => {
+const verifySignature = (payload, signature) => {
+  if (!signature || !signature.startsWith("sha256=")) {
+    return false;
+  }
+
+  const expected =
+    "sha256=" +
+    crypto.createHmac("sha256", webhookSecret).update(payload).digest("hex");
+
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+
+  return (
+    expectedBuf.length === signatureBuf.length &&
+    crypto.timingSafeEqual(expectedBuf, signatureBuf)
+  );
+};
+
+const server = http.createServer((req, res) => {
   const parts = req.url.split("/").filter(Boolean);
-  const [appName, pass] = parts;
+  const [appName] = parts;
 
-  console.log(`Received update request for app: ${appName}`);
-  console.log("Headers:", req.headers);
-  const clientIp =
-    req.headers["cf-connecting-ip"] ||
-    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
-    req.socket.remoteAddress;
-  console.log("IP:", clientIp);
-  console.log("Method:", req.method);
+  const chunks = [];
+  req.on("data", (chunk) => chunks.push(chunk));
+  req.on("end", async () => {
+    const rawBody = Buffer.concat(chunks);
 
-  if (pass != password) {
-    res.writeHead(401, { "Content-Type": "text/plain" });
-    res.end("Unauthorized!");
-    return;
-  }
+    console.log(`Received update request for app: ${appName}`);
+    console.log("Headers:", req.headers);
+    const clientIp =
+      req.headers["cf-connecting-ip"] ||
+      (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+      req.socket.remoteAddress;
+    console.log("IP:", clientIp);
+    console.log("Method:", req.method);
 
-  if (!appsName.includes(appName)) {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Wrong app name");
-    return;
-  }
+    if (!verifySignature(rawBody, req.headers["x-hub-signature-256"])) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden: invalid signature");
+      return;
+    }
 
-  res.writeHead(200, {
-    "Content-Type": "text/plain; charset=utf-8",
-    "Transfer-Encoding": "chunked",
-    "X-Content-Type-Options": "nosniff",
+    const event = req.headers["x-github-event"];
+    if (event === "ping") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ pong: true }));
+      return;
+    }
+    if (event && event !== "push") {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden: unsupported event");
+      return;
+    }
+
+    if (!appsName.includes(appName)) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Wrong app name");
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Transfer-Encoding": "chunked",
+      "X-Content-Type-Options": "nosniff",
+    });
+
+    try {
+      await runDeploy[appName](res);
+      res.end("\n\nDone.\n");
+    } catch (error) {
+      res.end("\n\nError during deploy:\n" + error + "\n");
+    }
   });
-
-  try {
-    await runDeploy[appName](res);
-    res.end("\n\nDone.\n");
-  } catch (error) {
-    res.end("\n\nError during deploy:\n" + error + "\n");
-  }
 });
 
-server.listen(port, () =>
-  console.log(`Update service is running on ${port} \npassword: ${password}`),
-);
+server.listen(port, () => console.log(`Update service is running on ${port}`));
 
 process.on("uncaughtException", (ex) => {
   Sentry.captureException(ex);

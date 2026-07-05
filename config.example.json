@@ -8,6 +8,6 @@
     }
   ],
   "port": 7777,
-  "password": "123123123",
+  "webhookSecret": "YOUR_WEBHOOK_SECRET_HERE",
   "sentryDsn": "https://3a084261cad64cf8b2a5c4f40c37d02c@monitoring.tickado.info/6"
 }
