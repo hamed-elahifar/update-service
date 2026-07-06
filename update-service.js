@@ -46,16 +46,10 @@ const streamCommand = (command, res) => {
   });
 };
 
-const deployKey = (name, branch) => `${name}::${branch}`;
-
-const runDeploy = {};
-
-apps.forEach((app) => {
-  runDeploy[deployKey(app.name, app.branch)] = (res) => {
-    const deployScript = `${app.path}/bin/deploy.sh`;
-    return streamCommand(`bash "${deployScript}"`, res);
-  };
-});
+const runAppDeploy = (app, res) => {
+  const deployScript = `${app.path}/bin/deploy.sh`;
+  return streamCommand(`bash "${deployScript}"`, res);
+};
 
 const verifySignature = (payload, signature) => {
   if (!signature || !signature.startsWith("sha256=")) {
@@ -84,7 +78,9 @@ const server = http.createServer((req, res) => {
   req.on("end", async () => {
     const rawBody = Buffer.concat(chunks);
 
-    console.log(`Received update request for app: ${appName} (${urlBranch})`);
+    console.log(
+      `Received update request for app: ${appName} (${urlBranch || "auto"})`,
+    );
     console.log("Headers:", req.headers);
     const clientIp =
       req.headers["cf-connecting-ip"] ||
@@ -125,18 +121,35 @@ const server = http.createServer((req, res) => {
       }
     }
 
-    if (pushedBranch && pushedBranch !== urlBranch) {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end(
-        `Skipped: push was to '${pushedBranch}', this endpoint watches '${urlBranch}'.\n`,
-      );
+    let app;
+    if (urlBranch) {
+      app = apps.find((a) => a.name === appName && a.branch === urlBranch);
+    } else {
+      const matches = apps.filter((a) => a.name === appName);
+      if (matches.length > 1) {
+        res.writeHead(409, { "Content-Type": "text/plain" });
+        res.end(
+          `Ambiguous: multiple copies of '${appName}' exist. Use /${appName}/<branch>.\n`,
+        );
+        return;
+      }
+      app = matches[0];
+    }
+
+    if (!app) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Wrong app name or branch");
       return;
     }
 
-    const deploy = runDeploy[deployKey(appName, urlBranch)];
-    if (!deploy) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Wrong app name or branch");
+    // Single-segment requests deploy whatever branch the app's copy is
+    // currently on, but a webhook push to another branch is still ignored.
+    const effectiveBranch = urlBranch || app.branch;
+    if (pushedBranch && pushedBranch !== effectiveBranch) {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(
+        `Skipped: push was to '${pushedBranch}', this endpoint watches '${effectiveBranch}'.\n`,
+      );
       return;
     }
 
@@ -147,7 +160,7 @@ const server = http.createServer((req, res) => {
     });
 
     try {
-      await deploy(res);
+      await runAppDeploy(app, res);
       res.end("\n\nDone.\n");
     } catch (error) {
       res.end("\n\nError during deploy:\n" + error + "\n");
