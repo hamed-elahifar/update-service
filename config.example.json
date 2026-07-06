@@ -5,9 +5,15 @@
       "path": "/root/tickado-new",
       "branch": "master",
       "pm": "pnpm"
+    },
+    {
+      "name": "tickado-new",
+      "path": "/root/tickado-new-staging",
+      "branch": "staging",
+      "pm": "pnpm"
     }
   ],
   "port": 7777,
-  "webhookSecret": "YOUR_WEBHOOK_SECRET_HERE",
+  "webhookSecret": "@vQ^f!ku)*J)vftvtUrZ4?q",
   "sentryDsn": "https://3a084261cad64cf8b2a5c4f40c37d02c@monitoring.tickado.info/6"
 }

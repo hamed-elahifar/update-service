@@ -1,6 +1,6 @@
 // --------------------- // بسم الله الرحمن الرحيم // --------------------- //
 // Manually trigger an update, signed the same way GitHub signs its webhooks.
-// Usage: node do-update.js <app-name> [host]
+// Usage: node do-update.js <app-name> <branch> [host]
 const http = require("http");
 const crypto = require("crypto");
 
@@ -8,14 +8,14 @@ const config = require("./config.json");
 
 const { port, webhookSecret } = config;
 
-const [, , appName, host = "localhost"] = process.argv;
+const [, , appName, branch, host = "localhost"] = process.argv;
 
-if (!appName) {
-  console.error("Usage: node do-update.js <app-name> [host]");
+if (!appName || !branch) {
+  console.error("Usage: node do-update.js <app-name> <branch> [host]");
   process.exit(1);
 }
 
-const payload = JSON.stringify({ action: "update", app: appName });
+const payload = JSON.stringify({ action: "update", app: appName, branch });
 const signature =
   "sha256=" +
   crypto.createHmac("sha256", webhookSecret).update(payload).digest("hex");
@@ -24,7 +24,7 @@ const req = http.request(
   {
     hostname: host,
     port,
-    path: `/${appName}`,
+    path: `/${appName}/${branch}`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -46,12 +46,12 @@ const streamCommand = (command, res) => {
   });
 };
 
-const appsName = [];
+const deployKey = (name, branch) => `${name}::${branch}`;
+
 const runDeploy = {};
 
 apps.forEach((app) => {
-  appsName.push(app.name);
-  runDeploy[app.name] = (res) => {
+  runDeploy[deployKey(app.name, app.branch)] = (res) => {
     const deployScript = `${app.path}/bin/deploy.sh`;
     return streamCommand(`bash "${deployScript}"`, res);
   };
@@ -77,14 +77,14 @@ const verifySignature = (payload, signature) => {
 
 const server = http.createServer((req, res) => {
   const parts = req.url.split("/").filter(Boolean);
-  const [appName] = parts;
+  const [appName, urlBranch] = parts;
 
   const chunks = [];
   req.on("data", (chunk) => chunks.push(chunk));
   req.on("end", async () => {
     const rawBody = Buffer.concat(chunks);
 
-    console.log(`Received update request for app: ${appName}`);
+    console.log(`Received update request for app: ${appName} (${urlBranch})`);
     console.log("Headers:", req.headers);
     const clientIp =
       req.headers["cf-connecting-ip"] ||
@@ -111,9 +111,32 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    if (!appsName.includes(appName)) {
+    let pushedBranch = null;
+    if (rawBody.length) {
+      try {
+        const payload = JSON.parse(rawBody.toString("utf8"));
+        if (payload.ref) {
+          pushedBranch = payload.ref.replace(/^refs\/heads\//, "");
+        } else if (payload.branch) {
+          pushedBranch = payload.branch;
+        }
+      } catch {
+        // Not JSON (or no body) — nothing to compare the URL branch against.
+      }
+    }
+
+    if (pushedBranch && pushedBranch !== urlBranch) {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(
+        `Skipped: push was to '${pushedBranch}', this endpoint watches '${urlBranch}'.\n`,
+      );
+      return;
+    }
+
+    const deploy = runDeploy[deployKey(appName, urlBranch)];
+    if (!deploy) {
       res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Wrong app name");
+      res.end("Wrong app name or branch");
       return;
     }
 
@@ -124,7 +147,7 @@ const server = http.createServer((req, res) => {
     });
 
     try {
-      await runDeploy[appName](res);
+      await deploy(res);
       res.end("\n\nDone.\n");
     } catch (error) {
       res.end("\n\nError during deploy:\n" + error + "\n");
