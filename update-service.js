@@ -20,11 +20,11 @@ if (sentryDsn) {
   });
 }
 
-const streamCommand = (command, res) => {
+const streamCommand = (command, args, res) => {
   return new Promise((resolve, reject) => {
-    console.log(`>>> ${command}`);
+    console.log(`>>> ${command} ${args.join(" ")}`);
 
-    const result = spawn(command, { shell: true });
+    const result = spawn(command, args);
 
     result.stdout.on("data", (data) => {
       process.stdout.write(data);
@@ -46,9 +46,10 @@ const streamCommand = (command, res) => {
   });
 };
 
-const runAppDeploy = (app, res) => {
+const runAppDeploy = (app, branch, res) => {
   const deployScript = `${app.path}/bin/deploy.sh`;
-  return streamCommand(`bash "${deployScript}"`, res);
+  const args = branch ? [deployScript, branch] : [deployScript];
+  return streamCommand("bash", args, res);
 };
 
 const verifySignature = (payload, signature) => {
@@ -160,7 +161,7 @@ const server = http.createServer((req, res) => {
     });
 
     try {
-      await runAppDeploy(app, res);
+      await runAppDeploy(app, urlBranch, res);
       res.end("\n\nDone.\n");
     } catch (error) {
       res.end("\n\nError during deploy:\n" + error + "\n");
