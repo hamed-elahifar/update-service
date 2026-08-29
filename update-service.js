@@ -20,11 +20,11 @@ if (sentryDsn) {
   });
 }
 
-const streamCommand = (command, args, res) => {
+const streamCommand = (command, args, res, env) => {
   return new Promise((resolve, reject) => {
     console.log(`>>> ${command} ${args.join(" ")}`);
 
-    const result = spawn(command, args);
+    const result = spawn(command, args, { env: { ...process.env, ...env } });
 
     result.stdout.on("data", (data) => {
       process.stdout.write(data);
@@ -49,7 +49,9 @@ const streamCommand = (command, args, res) => {
 const runAppDeploy = (app, branch, res) => {
   const deployScript = `${app.path}/bin/deploy.sh`;
   const args = branch ? [deployScript, branch] : [deployScript];
-  return streamCommand("bash", args, res);
+  // `env` lets two checkouts of one repo deploy to different targets — the
+  // pm2 app name and port live here, not in the shared ecosystem config.
+  return streamCommand("bash", args, res, app.env);
 };
 
 const verifySignature = (payload, signature) => {

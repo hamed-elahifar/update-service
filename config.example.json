@@ -8,7 +8,11 @@
     {
       "name": "tickado-new",
       "path": "/root/tickado-new-staging",
-      "branch": "staging"
+      "branch": "staging",
+      "env": {
+        "PM2_APP_NAME": "tickado-new-staging",
+        "PM2_SERVE_PORT": "3010"
+      }
     }
   ],
   "port": 7777,
