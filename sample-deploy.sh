@@ -101,6 +101,7 @@ Options:
 Env overrides:
   DEPLOY_BRANCH    Branch to deploy
   PM2_APP_NAME     Limit reload to one app (default: every app in ecosystem.config.js)
+  DEPLOY_BUILD_CMD Build command override (default: package.json "build" script)
 
 Stamp file: .deploy-stamp (stores last deployed commit; delete to force full rebuild)
 EOF
@@ -217,6 +218,11 @@ select_install_cmd() {
 }
 
 select_build_cmd() {
+  # ponytail: escape hatch for repos whose `build` script does more than build
+  # (type-check, lint) and fails on pre-existing errors. Set per-app in
+  # update-service config.json.
+  if [ -n "${DEPLOY_BUILD_CMD:-}" ]; then echo "$DEPLOY_BUILD_CMD"; return 0; fi
+
   [ -f "$PROJECT_DIR/package.json" ] || return 1
   grep -q '"build"' "$PROJECT_DIR/package.json" || return 1
 
