@@ -2,9 +2,8 @@
 // Manually trigger an update, signed the same way GitHub signs its webhooks.
 // Usage: node do-update.js <app-name> [branch] [--host=<host>]
 //
-// Omit <branch> to deploy whatever branch the app's copy is currently on
-// (only works when the app name has exactly one copy configured in
-// config.json — otherwise the service rejects the request as ambiguous).
+// Omit <branch> to run every deployment configured for the app. Pass a branch
+// to run only that deployment.
 const http = require("http");
 const crypto = require("crypto");
 

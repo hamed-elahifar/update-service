@@ -11,12 +11,9 @@ node do-update.js <app-name> [branch] [--host=<host>]
 ```
 
 - `app-name` — must match a `name` under `apps` in `config.json`.
-- `branch` — optional. If the app name has multiple copies configured (e.g.
-  one per branch), pass the branch to target the right one — this must match
-  a `name`/`branch` pair exactly. If the app name has exactly **one** copy
-  configured, you can omit `branch` entirely: the service deploys whatever
-  branch that copy's working directory is currently checked out to (via
-  `deploy.sh`'s own `git rev-parse --abbrev-ref HEAD` fallback).
+- `branch` — optional. Omit it to run every entry under the app's
+  `deployments` array. Pass it to run only the deployment whose `branch`
+  matches exactly.
 - `--host=<host>` — optional, defaults to `localhost`. Use this to trigger a
   deploy on a remote server (the service's `port` from `config.json` is used
   either way).
@@ -35,8 +32,7 @@ Trigger a deploy on a remote server, targeting a specific branch copy:
 node do-update.js tickado-new staging --host=103.75.197.213
 ```
 
-Trigger a deploy on a remote server for an app with only one copy configured,
-deploying whatever branch it's currently on:
+Trigger every deployment configured for an app:
 
 ```bash
 node do-update.js zayche-html --host=103.75.197.213
@@ -46,8 +42,8 @@ node do-update.js zayche-html --host=103.75.197.213
 
 Deploy output is streamed live to your terminal as it happens (same stream
 GitHub webhook deliveries get). The process exits `0` on success (HTTP 200)
-or `1` on failure (invalid signature, unknown/ambiguous app name or branch,
-request error, or a non-zero deploy exit code).
+or `1` on failure (invalid signature, unknown app name or branch, request
+error, or a non-zero deploy exit code).
 
 ## Requirements
 

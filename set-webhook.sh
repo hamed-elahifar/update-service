@@ -11,9 +11,8 @@
 #   -n  dry run — print what would change, touch nothing
 #   -l  list this repo's hooks and their last delivery status
 #
-# <app-name> must match an entry in the update-service config.json ON THE SERVER,
-# not the copy next to this script — the two drift. A name the server's config
-# doesn't have answers 404 and nothing ever deploys.
+# <app-name> must match an entry in the update-service config.json ON THE SERVER.
+# One webhook URL runs every deployment nested under that app.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,9 +85,7 @@ if $DRY; then
   exit 0
 fi
 
-# content_type must be json: with form encoding the body arrives as
-# `payload=<urlencoded>`, JSON.parse throws, pushedBranch stays null, and
-# update-service's branch guard is silently bypassed — any branch deploys.
+# Use GitHub's JSON content type for a standard webhook request body.
 if [ -n "$EXISTING" ]; then
   gh api -X PATCH "repos/$REPO/hooks/$EXISTING" \
     -f "config[url]=$URL" \

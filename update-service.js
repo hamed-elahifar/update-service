@@ -9,6 +9,23 @@ const config = require("./config.json");
 
 const { apps, port, webhookSecret, sentryDsn } = config;
 
+const selectDeployments = (app, branch) =>
+  branch
+    ? app.deployments.filter((deployment) => deployment.branch === branch)
+    : app.deployments;
+
+if (process.argv.includes("--self-test")) {
+  const assert = require("node:assert/strict");
+  const app = {
+    deployments: [{ branch: "master" }, { branch: "develop" }],
+  };
+
+  assert.deepEqual(selectDeployments(app), app.deployments);
+  assert.deepEqual(selectDeployments(app, "develop"), [app.deployments[1]]);
+  console.log("Self-test passed");
+  process.exit(0);
+}
+
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
@@ -46,12 +63,12 @@ const streamCommand = (command, args, res, env) => {
   });
 };
 
-const runAppDeploy = (app, branch, res) => {
-  const deployScript = `${app.path}/bin/deploy.sh`;
-  const args = branch ? [deployScript, branch] : [deployScript];
+const runDeployment = (deployment, res) => {
+  const deployScript = `${deployment.path}/bin/deploy.sh`;
+  const args = [deployScript, deployment.branch];
   // `env` lets two checkouts of one repo deploy to different targets — the
   // pm2 app name and port live here, not in the shared ecosystem config.
-  return streamCommand("bash", args, res, app.env);
+  return streamCommand("bash", args, res, deployment.env);
 };
 
 const verifySignature = (payload, signature) => {
@@ -110,49 +127,12 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    let pushedBranch = null;
-    if (rawBody.length) {
-      try {
-        const payload = JSON.parse(rawBody.toString("utf8"));
-        if (payload.ref) {
-          pushedBranch = payload.ref.replace(/^refs\/heads\//, "");
-        } else if (payload.branch) {
-          pushedBranch = payload.branch;
-        }
-      } catch {
-        // Not JSON (or no body) — nothing to compare the URL branch against.
-      }
-    }
+    const app = apps.find((candidate) => candidate.name === appName);
+    const deployments = app ? selectDeployments(app, urlBranch) : [];
 
-    let app;
-    if (urlBranch) {
-      app = apps.find((a) => a.name === appName && a.branch === urlBranch);
-    } else {
-      const matches = apps.filter((a) => a.name === appName);
-      if (matches.length > 1) {
-        res.writeHead(409, { "Content-Type": "text/plain" });
-        res.end(
-          `Ambiguous: multiple copies of '${appName}' exist. Use /${appName}/<branch>.\n`,
-        );
-        return;
-      }
-      app = matches[0];
-    }
-
-    if (!app) {
+    if (!deployments.length) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Wrong app name or branch");
-      return;
-    }
-
-    // Single-segment requests deploy whatever branch the app's copy is
-    // currently on, but a webhook push to another branch is still ignored.
-    const effectiveBranch = urlBranch || app.branch;
-    if (pushedBranch && pushedBranch !== effectiveBranch) {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end(
-        `Skipped: push was to '${pushedBranch}', this endpoint watches '${effectiveBranch}'.\n`,
-      );
       return;
     }
 
@@ -163,7 +143,12 @@ const server = http.createServer((req, res) => {
     });
 
     try {
-      await runAppDeploy(app, urlBranch, res);
+      for (const deployment of deployments) {
+        res.write(
+          `\n=== ${app.name}:${deployment.branch} (${deployment.path}) ===\n`,
+        );
+        await runDeployment(deployment, res);
+      }
       res.end("\n\nDone.\n");
     } catch (error) {
       res.end("\n\nError during deploy:\n" + error + "\n");
