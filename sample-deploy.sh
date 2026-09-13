@@ -11,6 +11,7 @@
 # Env overrides (all optional):
 #   DEPLOY_BRANCH    Branch to deploy  (default: current git branch)
 #   PM2_APP_NAME     PM2 app name      (default: every app in ecosystem.config.js)
+#   DEPLOY_ECOSYSTEM pm2 ecosystem file (default: ecosystem.config.js)
 #
 # PM2 reload: every app is `pm2 delete`d then `pm2 start`ed fresh (not
 # restarted/reloaded with --update-env) so each one boots reading this
@@ -101,6 +102,7 @@ Options:
 Env overrides:
   DEPLOY_BRANCH    Branch to deploy
   PM2_APP_NAME     Limit reload to one app (default: every app in ecosystem.config.js)
+  DEPLOY_ECOSYSTEM pm2 ecosystem file (default: ecosystem.config.js)
   DEPLOY_BUILD_CMD Build command override (default: package.json "build" script)
 
 Stamp file: .deploy-stamp (stores last deployed commit; delete to force full rebuild)
@@ -115,6 +117,9 @@ EOF
 done
 
 PM2_APP_NAME="${PM2_APP_NAME:-}"
+# ponytail: lets a second checkout (e.g. a test env) reload its own pm2 apps
+# instead of the ones in the shared ecosystem.config.js.
+ECOSYSTEM="${DEPLOY_ECOSYSTEM:-ecosystem.config.js}"
 
 # Current branch of $PROJECT_DIR, empty (not "HEAD") when detached --
 # `rev-parse --abbrev-ref HEAD` would return the literal string "HEAD" here,
@@ -168,7 +173,7 @@ deps_changed() {
 # *every* app defined in ecosystem.config.js -- see the "pm2 reload" step for
 # why they all need to cycle on every deploy, not just the primary one.
 detect_pm2_app_names() {
-  local ecosystem="$PROJECT_DIR/ecosystem.config.js"
+  local ecosystem="$PROJECT_DIR/$ECOSYSTEM"
 
   if [ ! -f "$ecosystem" ]; then
     echo "${PM2_APP_NAME:-app}"
@@ -191,7 +196,7 @@ detect_pm2_app_names() {
     if grep -qxF "$PM2_APP_NAME" <<< "$configured_names"; then
       echo "$PM2_APP_NAME"
     else
-      log_warn "PM2 app '$PM2_APP_NAME' not in ecosystem.config.js -- deploying all configured apps instead"
+      log_warn "PM2 app '$PM2_APP_NAME' not in $ECOSYSTEM -- deploying all configured apps instead"
       echo "$configured_names"
     fi
     return 0
@@ -317,7 +322,7 @@ main() {
   local app_names
   app_names="$(detect_pm2_app_names)"
 
-  if [ -f "$PROJECT_DIR/ecosystem.config.js" ]; then
+  if [ -f "$PROJECT_DIR/$ECOSYSTEM" ]; then
     # `pm2 restart/reload/startOrReload --update-env` only *merges* the
     # invoking shell's env into pm2's already-stored snapshot for the app --
     # it can never clear a key that was baked in at an earlier `pm2 start`
@@ -336,7 +341,7 @@ main() {
       else
         log "pm2 app '$app_name' not currently running -- starting fresh"
       fi
-      run_cmd pm2 start ecosystem.config.js --only "$app_name"
+      run_cmd pm2 start "$ECOSYSTEM" --only "$app_name"
     done <<< "$app_names"
   else
     run_cmd pm2 restart "$app_names" --update-env
