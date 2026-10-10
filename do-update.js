@@ -43,7 +43,9 @@ const req = http.request(
   },
   (res) => {
     res.pipe(process.stdout);
-    res.on("end", () => process.exit(res.statusCode === 200 ? 0 : 1));
+    res.on("end", () =>
+      process.exit(res.statusCode >= 200 && res.statusCode < 300 ? 0 : 1),
+    );
   },
 );
 

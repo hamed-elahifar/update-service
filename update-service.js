@@ -37,7 +37,7 @@ if (sentryDsn) {
   });
 }
 
-const streamCommand = (command, args, res, env) => {
+const streamCommand = (command, args, env) => {
   return new Promise((resolve, reject) => {
     console.log(`>>> ${command} ${args.join(" ")}`);
 
@@ -45,12 +45,10 @@ const streamCommand = (command, args, res, env) => {
 
     result.stdout.on("data", (data) => {
       process.stdout.write(data);
-      res.write(data);
     });
 
     result.stderr.on("data", (data) => {
       process.stderr.write(data);
-      res.write(data);
     });
 
     result.on("close", (code) => {
@@ -63,12 +61,12 @@ const streamCommand = (command, args, res, env) => {
   });
 };
 
-const runDeployment = (deployment, res) => {
+const runDeployment = (deployment) => {
   const deployScript = `${deployment.path}/bin/deploy.sh`;
   const args = [deployScript, deployment.branch];
   // `env` lets two checkouts of one repo deploy to different targets — the
   // pm2 app name and port live here, not in the shared ecosystem config.
-  return streamCommand("bash", args, res, deployment.env);
+  return streamCommand("bash", args, deployment.env);
 };
 
 const verifySignature = (payload, signature) => {
@@ -136,23 +134,25 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    res.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
+    res.writeHead(202, {
+      "Content-Type": "application/json",
       "X-Content-Type-Options": "nosniff",
     });
+    res.end(JSON.stringify({ accepted: true, app: app.name }));
 
-    try {
-      for (const deployment of deployments) {
-        res.write(
-          `\n=== ${app.name}:${deployment.branch} (${deployment.path}) ===\n`,
-        );
-        await runDeployment(deployment, res);
+    void (async () => {
+      try {
+        for (const deployment of deployments) {
+          console.log(
+            `Starting deployment ${app.name}:${deployment.branch} (${deployment.path})`,
+          );
+          await runDeployment(deployment);
+        }
+        console.log(`Deployment completed for ${app.name}`);
+      } catch (error) {
+        console.error(`Deployment failed for ${app.name}:`, error);
       }
-      res.end("\n\nDone.\n");
-    } catch (error) {
-      res.end("\n\nError during deploy:\n" + error + "\n");
-    }
+    })();
   });
 });
 

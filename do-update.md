@@ -40,10 +40,10 @@ node do-update.js zayche-html --host=103.75.197.213
 
 ## Output
 
-Deploy output is streamed live to your terminal as it happens (same stream
-GitHub webhook deliveries get). The process exits `0` on success (HTTP 200)
-or `1` on failure (invalid signature, unknown app name or branch, request
-error, or a non-zero deploy exit code).
+The endpoint returns `202 Accepted` once the deployment is queued. The deploy
+runs in the update-service process; its output and final status appear in the
+service logs. The command exits `0` when accepted and `1` on request failure
+(invalid signature, unknown app name or branch, or network error).
 
 ## Requirements
 
